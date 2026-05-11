@@ -2,7 +2,7 @@ import serial
 import time
 from collections import deque
  
-# ── Serial / Arduino config ─────────────────────────────────────────
+# ── Serial / Arduino config
 ARDUINO_PORT = "COM3"
 BAUD_RATE = 9600
 WARNING_DISTANCE = 50  # cm
@@ -10,7 +10,7 @@ WARNING_DISTANCE = 50  # cm
 ser = serial.Serial(ARDUINO_PORT, BAUD_RATE, timeout=1)
 time.sleep(2)
  
-# ── Data storage ────────────────────────────────────────────────────
+# ── Data storage
 times = deque(maxlen=100)
 distances = deque(maxlen=100)
 start_time = time.time()
@@ -19,7 +19,7 @@ was_in_warning = False
  
 print("Reading data from Arduino... Press Ctrl+C to stop.\n")
  
-# ── Main loop: read and print data ──────────────────────────────────
+
 while True:
     try:
         raw = ser.readline().decode("utf-8").strip()
@@ -49,4 +49,3 @@ while True:
         break
     except Exception as e:
         print("Error:", e)
- 
