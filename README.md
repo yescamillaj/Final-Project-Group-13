@@ -16,4 +16,3 @@ This branch only collects the data from the Arduino.
 
 ## Branch 4: thingSpeak  
 This branch only contains the code to create the thingSpeak graphs.
-
