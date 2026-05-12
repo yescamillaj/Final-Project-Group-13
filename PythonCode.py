@@ -2,6 +2,7 @@ import serial
 import time
 import threading
 from collections import deque
+import requests
  
 import dash
 from dash import dcc, html
@@ -10,7 +11,12 @@ import plotly.graph_objs as go
  
 ARDUINO_PORT = "COM3"
 BAUD_RATE = 9600
-WARNING_DISTANCE = 50  
+WARNING_DISTANCE = 50
+ 
+THINGS_API_KEY = "OFO25QKX8G98J3QN"
+THINGSPEAK_URL = "https://api.thingspeak.com/update"
+last_send_time = 0
+ 
 ser = serial.Serial(ARDUINO_PORT, BAUD_RATE, timeout=1)
 time.sleep(2)
  
@@ -22,8 +28,25 @@ was_in_warning = False
 latest_distance = None
 latest_status = "Initializing…"
  
+ 
+def enviar_thingspeak(distance, warning_count):
+    payload = {
+        "api_key": THINGS_API_KEY,
+        "field1": distance,
+        "field2": warning_count
+    }
+    try:
+        response = requests.post(THINGSPEAK_URL, data=payload, timeout=3)
+        if response.status_code == 200:
+            print(f"Dato enviado: Distancia {distance}, Alertas {warning_count}")
+        else:
+            print(f"Error de ThingSpeak: Código {response.status_code}")
+    except Exception as e:
+        print("Error de conexión:", e)
+ 
+ 
 def read_serial():
-    global warning_count, was_in_warning, latest_distance, latest_status
+    global warning_count, was_in_warning, latest_distance, latest_status, last_send_time
     while True:
         try:
             raw = ser.readline().decode("utf-8").strip()
@@ -42,15 +65,21 @@ def read_serial():
                 else:
                     latest_status = "SAFE"
                     was_in_warning = False
+ 
+                if t - last_send_time > 15:
+                    enviar_thingspeak(distance, warning_count)
+                    last_send_time = t
+ 
         except ValueError:
             pass
         except Exception as e:
             print("Serial error:", e)
  
-threading.Thread(target=read_serial, daemon=True).start()
-
  
-#Dash app layout
+threading.Thread(target=read_serial, daemon=True).start()
+ 
+ 
+# Dash app layout
 app = dash.Dash(__name__)
 app.title = "Blind Assist Glove Monitor"
  
@@ -101,7 +130,6 @@ app.layout = html.Div(
                         html.H2(id="status-text", style={"margin": "8px 0", "fontSize": "1.6rem"}),
                     ],
                 ),
-
                 html.Div(
                     style={
                         "backgroundColor": "#1e293b",
@@ -119,7 +147,6 @@ app.layout = html.Div(
             ],
         ),
  
-
         html.Div(
             style={"marginTop": "30px"},
             children=[
@@ -127,10 +154,10 @@ app.layout = html.Div(
             ],
         ),
  
-
         dcc.Interval(id="interval", interval=500, n_intervals=0),
     ],
 )
+ 
  
 # Callbacks
 @app.callback(
@@ -142,17 +169,13 @@ app.layout = html.Div(
     Input("interval", "n_intervals"),
 )
 def update_dashboard(_):
-
     dist_text = f"{latest_distance} cm" if latest_distance is not None else "-- cm"
  
-
-
     if latest_distance is not None and latest_distance < WARNING_DISTANCE:
         status_style = {"margin": "8px 0", "fontSize": "1.6rem", "color": "#ef4444"}
     else:
         status_style = {"margin": "8px 0", "fontSize": "1.6rem", "color": "#22c55e"}
  
-
     t_list = list(times)
     d_list = list(distances)
  
@@ -185,7 +208,7 @@ def update_dashboard(_):
     return dist_text, latest_status, status_style, str(warning_count), fig
  
  
-#Run
+# Run
 if __name__ == "__main__":
     print("\nDashboard running at:  http://127.0.0.1:8050\n")
     app.run(debug=False)
