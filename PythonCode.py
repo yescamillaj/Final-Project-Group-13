@@ -20,7 +20,8 @@ last_send_time = 0
 ser = serial.Serial(ARDUINO_PORT, BAUD_RATE, timeout=1)
 time.sleep(2)
  
-times = deque(maxlen=100)
+times = deque(maxlen=100) #deque is a double-ended queue with max length of 100. 
+#Once it's full and a new value comes in, the oldest value drops.  it's a sliding window that keeps scrolling forward in time, never growing beyond 100 points
 distances = deque(maxlen=100)
 start_time = time.time()
 warning_count = 0
@@ -30,53 +31,53 @@ latest_status = "Initializing…"
  
  
 def enviar_thingspeak(distance, warning_count):
-    payload = {
+    payload = { #This creates the dictionary
         "api_key": THINGS_API_KEY,
         "field1": distance,
         "field2": warning_count
     }
-    try:
-        response = requests.post(THINGSPEAK_URL, data=payload, timeout=3)
-        if response.status_code == 200:
+    try: #Starts a protected block, if anything goes wrong, then the program wont crash
+        response = requests.post(THINGSPEAK_URL, data=payload, timeout=3) #Sends the information to thingSpeak via an URL
+        if response.status_code == 200: #Success
             print(f"Dato enviado: Distancia {distance}, Alertas {warning_count}")
-        else:
+        else: #Error
             print(f"Error de ThingSpeak: Código {response.status_code}")
-    except Exception as e:
+    except Exception as e: #Error with connection
         print("Error de conexión:", e)
  
  
-def read_serial():
-    global warning_count, was_in_warning, latest_distance, latest_status, last_send_time
+def read_serial(): #Function to continuously read data from Arduino
+    global warning_count, was_in_warning, latest_distance, latest_status, last_send_time #Public vars
     while True:
         try:
-            raw = ser.readline().decode("utf-8").strip()
-            if raw:
-                distance = int(raw)
-                t = time.time() - start_time
-                times.append(t)
+            raw = ser.readline().decode("utf-8").strip() #Reads one line fromm Arduino and converts the raw bytes into a readable string
+            if raw: #If line is not empty
+                distance = int(raw) #Converts string into integer
+                t = time.time() - start_time #Calculate the time passed since the program started
+                times.append(t) #Add the new timestamp to the rolling deques
                 distances.append(distance)
-                latest_distance = distance
+                latest_distance = distance #Updates the distance
  
                 if distance < WARNING_DISTANCE:
-                    latest_status = "WARNING — Object Close!"
-                    if not was_in_warning:
+                    latest_status = "WARNING — Object Close!" #If the object is closer that 50 cm, sets the tatus to WARNING
+                    if not was_in_warning: #This counts each new object once, this prevents counting the same obstacle 
                         warning_count += 1
                         was_in_warning = True
-                else:
+                else: #If the objet is farther than 50 cm, then the status will be SAFE
                     latest_status = "SAFE"
                     was_in_warning = False
  
-                if t - last_send_time > 15:
+                if t - last_send_time > 15: #Updates the data of ThingSoeak every 15 seconds
                     enviar_thingspeak(distance, warning_count)
                     last_send_time = t
  
-        except ValueError:
+        except ValueError: #This is if the Arduino sent a non-numeric value
             pass
         except Exception as e:
             print("Serial error:", e)
  
  
-threading.Thread(target=read_serial, daemon=True).start()
+threading.Thread(target=read_serial, daemon=True).start() #Allows the serial reading and the dashboard to run simultaneously
  
  
 # Dash app layout
